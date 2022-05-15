@@ -26,25 +26,26 @@ def get_header_info(data, index):
         return None
 
 
-def get_price_history(data):
-    return None
-
-
-def get_transfer_history(data):
+def get_transfer_values(data):
     try:
-        price_info = {}
-        
-        for table_content in data:
-            columns = table_content.find_all("td")
+        transfers = []
+        n = 0
 
-            price_info["season_" + columns[0].text] = {
-                "date" : columns[1].text,
-                "from_club" : columns[4].title,
-                "to_club" : columns[7].title,
-                "price" : columns[8].text
-            }
-
-        return price_info
+        for element in data.find_all("div", class_="tm-player-transfer-history-grid"):
+            if n == 0:
+                n += 1
+                next
+            else:
+                if len(element.find_all("div")) >= 6:
+                    transfer_data = {
+                        "season" : element.find_all("div")[0].text.strip(),
+                        "data" : element.find_all("div")[1].text.strip(),
+                        "from" : element.find_all("div")[2].text.strip(),
+                        "to" : element.find_all("div")[3].text.strip(),
+                        "value" : element.find_all("div")[4].text.strip()
+                    }
+                    transfers.append(transfer_data)
+        return transfers
     except:
         return None
 
@@ -189,7 +190,34 @@ def get_performance(data):
 
 def get_contusion(data):
     try:
-        return None
+        url = "https://www.transfermarkt.pl"
+        main_page = data
+
+        user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.87 Safari/537.36'
+        headers = {'User-Agent': user_agent}
+        cookies = {"cookie":"COPY_HERE_YOUR_COOKIE_FROM_BROWSER"}
+
+        response = requests.get(url + main_page, headers=headers , cookies=cookies)
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        contusions = []
+
+        for contusion in soup.find("table", class_="items").find_all("tr"):
+            if contusion.find_all("td") == []:
+                contusion_data = None
+            else:
+                contusion_data = {
+                    "season" : contusion.find_all("td")[0].text,
+                    "description" : contusion.find_all("td")[1].text,
+                    "from_data" : contusion.find_all("td")[2].text,
+                    "to_data" : contusion.find_all("td")[3].text,
+                    "absences" : contusion.find_all("td")[4].text,
+                }
+
+            contusions.append(contusion_data)
+
+        return(contusions)
+
     except:
         return None
 
@@ -222,8 +250,6 @@ def main():
                 soup = BeautifulSoup(response.content, "html.parser")
     
                 main_info = soup.find("div", class_="data-header__info-box")
-                additional_info = soup.find("div", class_="info-table info-table--right-space")
-                # price_info = soup.find("div", class_="responsive-table").find("tbody").find_all("tr", class_="zeile-transfer")
     
                 json_object[first_child.find("a", href=True)["href"].split("/")[1]] = {
                     "photo" : get_player_photo(soup.find("div", class_="modal-trigger")),
@@ -239,14 +265,12 @@ def main():
                     "leg" : get_leg(soup),
                     "position" : get_position(soup),
                     "manager" : get_manager(soup),
-                    "contusions" : get_contusion(soup),
-                    # "transfer_values" : get_transfer_history(price_info),
-                    # "price_history" : get_price_history(price_info),
+                    "contusions" : get_contusion(first_child.find("a", href=True)["href"].replace("profil", "verletzungen")),
+                    "transfer_values" : get_transfer_values(soup),
                     "max_tranfer_value" : get_max_tranfer_value(soup),
                     "performance" : get_performance(soup),
                     "last_time_updated" : get_last_time_updated(soup)
                 }
-
     return json_object
 
 with open("players_info.json", "w") as outfile:
