@@ -221,6 +221,32 @@ def get_contusion(data):
     except:
         return None
 
+
+def get_value_history(data):
+    try:
+        script = data.find_all('script')
+        script = ' '.join([str(elem) for elem in script])
+        chartCode = script.split("var chart = new Highcharts.Chart")[1]
+        data_with_padding = chartCode.split("'data':")[1]
+        data = data_with_padding.split("}],'legend'")[0]
+        data = data.encode().decode('unicode-escape')
+        data = data.replace("\'", "\"")
+        data = json.loads(data)
+
+        values_history = []
+
+        for i in range(len(data)):
+            history_record = {
+                "club" : data[i]["verein"],
+                "date" : data[i]["datum_mw"],
+                "value" : data[i]["mw"]
+            }
+            values_history.append(history_record)
+
+        return values_history
+    except:
+        return None
+
 def main():
     url = "https://www.transfermarkt.pl"
     main_page = "/ekstraklasa/startseite/wettbewerb/PL1/"
@@ -236,41 +262,43 @@ def main():
     teams_urls = teams_table.find_all("td", class_="hauptlink no-border-links")
     
     json_object = {}
-    
+
     for a in teams_urls:
-            response = requests.get(url + a.find("a", href=True)["href"], headers=headers , cookies=cookies)
+        response = requests.get(url + a.find("a", href=True)["href"], headers=headers , cookies=cookies)
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        players_table = soup.find(id="yw1").find("tbody")
+        players_urls = players_table.find_all("td", class_="posrela")
+
+        for player in players_urls:
+            first_child = next(player.find("td", class_="hauptlink").children, None)
+            response = requests.get(url + first_child.find("a", href=True)["href"], headers=headers , cookies=cookies)
             soup = BeautifulSoup(response.content, "html.parser")
-    
-            players_table = soup.find(id="yw1").find("tbody")
-            players_urls = players_table.find_all("td", class_="posrela")
-    
-            for player in players_urls:
-                first_child = next(player.find("td", class_="hauptlink").children, None)
-                response = requests.get(url + first_child.find("a", href=True)["href"], headers=headers , cookies=cookies)
-                soup = BeautifulSoup(response.content, "html.parser")
-    
-                main_info = soup.find("div", class_="data-header__info-box")
-    
-                json_object[first_child.find("a", href=True)["href"].split("/")[1]] = {
-                    "photo" : get_player_photo(soup.find("div", class_="modal-trigger")),
-                    "number" : get_header_info(soup.find("h1", class_="data-header__headline-wrapper").text.split(), 0),
-                    "first_name" : get_header_info(soup.find("h1", class_="data-header__headline-wrapper").text.split(), 1),
-                    "last_name" : get_header_info(soup.find("h1", class_="data-header__headline-wrapper").text.split(), 2),
-                    "team" : get_team(soup),
-                    "date_of_birth" : get_date_of_birth(main_info),
-                    "age" : get_age(main_info),
-                    "nationality" : get_nationality(main_info),
-                    "city" : get_city(main_info),
-                    "height" : get_height(main_info),
-                    "leg" : get_leg(soup),
-                    "position" : get_position(soup),
-                    "manager" : get_manager(soup),
-                    "contusions" : get_contusion(first_child.find("a", href=True)["href"].replace("profil", "verletzungen")),
-                    "transfer_values" : get_transfer_values(soup),
-                    "max_tranfer_value" : get_max_tranfer_value(soup),
-                    "performance" : get_performance(soup),
-                    "last_time_updated" : get_last_time_updated(soup)
-                }
+
+            main_info = soup.find("div", class_="data-header__info-box")
+
+            json_object[first_child.find("a", href=True)["href"].split("/")[1]] = {
+                "photo" : get_player_photo(soup.find("div", class_="modal-trigger")),
+                "number" : get_header_info(soup.find("h1", class_="data-header__headline-wrapper").text.split(), 0),
+                "first_name" : get_header_info(soup.find("h1", class_="data-header__headline-wrapper").text.split(), 1),
+                "last_name" : get_header_info(soup.find("h1", class_="data-header__headline-wrapper").text.split(), 2),
+                "team" : get_team(soup),
+                "date_of_birth" : get_date_of_birth(main_info),
+                "age" : get_age(main_info),
+                "nationality" : get_nationality(main_info),
+                "city" : get_city(main_info),
+                "height" : get_height(main_info),
+                "leg" : get_leg(soup),
+                "position" : get_position(soup),
+                "manager" : get_manager(soup),
+                "contusions" : get_contusion(first_child.find("a", href=True)["href"].replace("profil", "verletzungen")),
+                "transfer_values" : get_transfer_values(soup),
+                "value_history" : get_value_history(soup),
+                "max_tranfer_value" : get_max_tranfer_value(soup),
+                "performance" : get_performance(soup),
+                "last_time_updated" : get_last_time_updated(soup)
+            }
+
     return json_object
 
 with open("players_info.json", "w") as outfile:
